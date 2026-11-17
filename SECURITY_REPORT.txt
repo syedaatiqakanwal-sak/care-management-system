@@ -1,0 +1,174 @@
+src/users/users.service.ts:16:            select: ['id', 'email', 'password', 'role', 'isActive'], // Explicitly select password and active status
+src/users/user.entity.ts:19:    password: string;
+src/vle-credentials/vle-credentials.controller.ts:20:        @Body() body: { username: string; password?: string }
+src/vle-credentials/vle-credentials.service.ts:14:    // Use a fixed key derived from a secret string for persistence consistency
+src/vle-credentials/vle-credentials.service.ts:15:    private readonly key = crypto.scryptSync('lets-care-all-vle-secret-key-v1', 'salt', 32);
+src/vle-credentials/vle-credentials.service.ts:58:            select: ['id', 'username', 'password', 'loginUrl', 'updatedAt']
+src/vle-credentials/vle-credentials.service.ts:72:        // Update: Allow both Admin AND Owner (Staff) to see the real password so they can use it.
+src/vle-credentials/vle-credentials.service.ts:76:                password: this.decrypt(creds.password) // Show Real Password
+src/vle-credentials/vle-credentials.service.ts:83:            password: '********'
+src/vle-credentials/vle-credentials.service.ts:87:    async updateCredentials(adminUser: User | any, targetUserId: string, updateDto: { username: string; password?: string }) {
+src/vle-credentials/vle-credentials.service.ts:112:        if (updateDto.password) {
+src/vle-credentials/vle-credentials.service.ts:114:            creds.password = this.encrypt(updateDto.password);
+src/vle-credentials/vle-credential.entity.ts:14:    password: string;
+src/api-tokens/api-tokens.controller.ts:3:import { ApiTokensService } from './api-tokens.service';
+src/api-tokens/api-tokens.controller.ts:4:import { CreateApiTokenDto } from './dto/create-api-token.dto';
+src/api-tokens/api-tokens.controller.ts:6:@Controller('api/manage/tokens')
+src/api-tokens/api-tokens.controller.ts:16:        const { token, apiToken } = await this.apiTokensService.createToken(
+src/api-tokens/api-tokens.controller.ts:23:        // Return token info with plain token ONCE
+src/api-tokens/api-tokens.controller.ts:26:            token, // Plain token - only returned once!
+src/api-tokens/api-tokens.controller.ts:35:            message: 'Token created successfully. Save this token now - it will not be shown again.',
+src/api-tokens/api-tokens.controller.ts:42:        const tokens = await this.apiTokensService.findAllByUser(userId);
+src/api-tokens/api-tokens.controller.ts:44:        // Return tokens without hash
+src/api-tokens/api-tokens.controller.ts:47:            tokens: tokens.map(token => ({
+src/api-tokens/api-tokens.controller.ts:48:                id: token.id,
+src/api-tokens/api-tokens.controller.ts:49:                name: token.name,
+src/api-tokens/api-tokens.controller.ts:50:                scopes: token.scopes,
+src/api-tokens/api-tokens.controller.ts:51:                lastUsedAt: token.lastUsedAt,
+src/api-tokens/api-tokens.controller.ts:52:                expiresAt: token.expiresAt,
+src/api-tokens/api-tokens.controller.ts:53:                createdAt: token.createdAt,
+src/api-tokens/api-tokens.module.ts:3:import { ApiToken } from './api-token.entity';
+src/api-tokens/api-tokens.module.ts:4:import { ApiTokensService } from './api-tokens.service';
+src/api-tokens/api-tokens.module.ts:5:import { ApiTokensController } from './api-tokens.controller';
+src/api-tokens/api-tokens.module.ts:6:import { ApiTokenGuard } from './api-token.guard';
+src/api-tokens/api-token.guard.ts:4:import { ApiToken } from './api-token.entity';
+src/api-tokens/api-token.guard.ts:17:        // Extract Bearer token from Authorization header
+src/api-tokens/api-token.guard.ts:20:            throw new UnauthorizedException('Missing or invalid Authorization header. Expected: Bearer <token>');
+src/api-tokens/api-token.guard.ts:23:        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+src/api-tokens/api-token.guard.ts:25:        // Hash the token with SHA-256
+src/api-tokens/api-token.guard.ts:26:        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+src/api-tokens/api-token.guard.ts:28:        // Look up token in database
+src/api-tokens/api-token.guard.ts:30:            where: { tokenHash },
+src/api-tokens/api-token.guard.ts:35:            throw new UnauthorizedException('Invalid API token');
+src/api-tokens/api-token.guard.ts:38:        // Check if token is expired
+src/api-tokens/api-token.guard.ts:40:            throw new ForbiddenException('API token has expired');
+src/api-tokens/api-token.guard.ts:47:        // Attach token info to request (for use in controllers)
+src/api-tokens/api-token.guard.ts:48:        request.tokenUserId = apiToken.userId;
+src/api-tokens/api-token.guard.ts:49:        request.tokenScopes = apiToken.scopes || [];
+src/api-tokens/api-token.entity.ts:4:@Entity('api_tokens')
+src/api-tokens/api-token.entity.ts:20:    @Column({ name: 'token_hash', length: 64, unique: true })
+src/api-tokens/api-token.entity.ts:22:    tokenHash: string;
+src/api-tokens/api-tokens.service.ts:4:import { ApiToken } from './api-token.entity';
+src/api-tokens/api-tokens.service.ts:14:    async createToken(userId: string, name: string, scopes: string[] = [], expiresInDays?: number): Promise<{ token: string; apiToken: ApiToken }> {
+src/api-tokens/api-tokens.service.ts:15:        // Generate a secure random token (64 hex characters = 32 bytes)
+src/api-tokens/api-tokens.service.ts:16:        const token = crypto.randomBytes(32).toString('hex');
+src/api-tokens/api-tokens.service.ts:18:        // Hash the token for storage
+src/api-tokens/api-tokens.service.ts:19:        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+src/api-tokens/api-tokens.service.ts:26:        // Create and save the token
+src/api-tokens/api-tokens.service.ts:30:            tokenHash,
+src/api-tokens/api-tokens.service.ts:37:        // Return the plain token ONCE (never stored in plain text)
+src/api-tokens/api-tokens.service.ts:38:        return { token, apiToken };
+src/api-tokens/api-tokens.service.ts:54:            throw new NotFoundException('API token not found');
+src/email/email.service.ts:40:                    <p>You requested to reset your password. Please use the following code to verify your identity:</p>
+src/policies/policies.module.ts:28:        secret: configService.get<string>('JWT_SECRET'),
+src/policies/policies-crud.controller.ts:138:  @Get(':id/view-token')
+src/policies/policies-crud.controller.ts:147:    const token = this.jwtService.sign(
+src/policies/policies-crud.controller.ts:156:    return { token };
+src/policies/policies-crud.controller.ts:160:  async stream(@Param('id') id: string, @Query('token') token: string, @Res() res: Response) {
+src/policies/policies-crud.controller.ts:161:    if (!token) throw new BadRequestException('token required');
+src/policies/policies-crud.controller.ts:164:      payload = this.jwtService.verify(token);
+src/policies/policies-crud.controller.ts:166:      throw new BadRequestException('invalid token');
+src/policies/policies-crud.controller.ts:168:    if (payload.policyId !== id) throw new BadRequestException('token mismatch');
+src/n8n-automation/scopes.guard.ts:16:        const tokenScopes: string[] = request.tokenScopes || [];
+src/n8n-automation/scopes.guard.ts:19:        const hasAllScopes = requiredScopes.every(scope => tokenScopes.includes(scope));
+src/n8n-automation/scopes.guard.ts:23:                `Missing required scopes: ${requiredScopes.join(', ')}. Token has: ${tokenScopes.join(', ') || 'none'}`
+src/n8n-automation/n8n-automation.controller.ts:2:import { ApiTokenGuard } from '../api-tokens/api-token.guard';
+src/n8n-automation/n8n-automation.controller.ts:11:@UseGuards(ApiTokenGuard, ScopesGuard) // Only API token auth, NOT JWT session auth
+src/n8n-automation/n8n-automation.module.ts:7:import { ApiToken } from '../api-tokens/api-token.entity';
+src/n8n-automation/n8n-automation.module.ts:8:import { ApiTokensModule } from '../api-tokens/api-tokens.module';
+src/auth/auth.dto.ts:8:    password: string;
+src/auth/auth.dto.ts:17:    password: string;
+src/auth/auth.service.ts:34:        if (await bcrypt.compare(pass, user.password)) {
+src/auth/auth.service.ts:35:            const { password, ...result } = user;
+src/auth/auth.service.ts:56:            name = 'Baidar Khan'; // Keeping hardcoded for Admin as requested, or could fetch from a future AdminProfile
+src/auth/auth.service.ts:60:            access_token: this.jwtService.sign(payload),
+src/auth/auth.service.ts:71:        const { email, password, firstName, lastName, phone, ilccsNumber } = registerDto;
+src/auth/auth.service.ts:80:        const hashedPassword = await bcrypt.hash(password, 10);
+src/auth/auth.service.ts:84:            password: hashedPassword,
+src/auth/auth.service.ts:106:        const { password: _, ...result } = newUser;
+src/auth/auth.service.ts:177:        // Hash new password
+src/auth/auth.service.ts:180:        // Update password and clear OTP
+src/auth/auth.service.ts:182:            password: hashedPassword,
+src/auth/auth.controller.ts:18:        const user = await this.authService.validateUser(req.email, req.password, UserRole.ADMIN);
+src/auth/auth.controller.ts:29:        const user = await this.authService.validateUser(req.email, req.password, UserRole.STAFF);
+src/auth/auth.controller.ts:62:    @Post('forgot-password')
+src/auth/auth.controller.ts:72:    @Post('reset-password')
+src/auth/jwt.strategy.ts:12:            secretOrKey: configService.get<string>('JWT_SECRET') || 'fallback_secret',
+src/auth/auth.module.ts:21:                secret: configService.get<string>('JWT_SECRET'),
+src/scripts/test-reg.ts:12:        password: 'Password123!',
+src/scripts/check-login.ts:15:    const password = 'password123';
+src/scripts/check-login.ts:29:            passwordHash: user.password
+src/scripts/check-login.ts:33:        const match = await bcrypt.compare(password, user.password);
+src/scripts/check-login.ts:37:            console.log('Try hashing "password123" again to compare:');
+src/scripts/check-login.ts:38:            const newHash = await bcrypt.hash(password, 10);
+src/scripts/check-login.ts:46:        const validUser = await authService.validateUser(email, password, UserRole.STAFF);
+src/scripts/test-api.ts:10:            password: 'password123'
+src/scripts/test-api.ts:13:        const token = loginRes.data.access_token;
+src/scripts/test-api.ts:18:            headers: { Authorization: `Bearer ${token}` }
+src/scripts/verify-sync.ts:23:        password: 'password123',
+src/scripts/create-temp-admin.ts:12:    const password = 'password123';
+src/scripts/create-temp-admin.ts:13:    const hashedPassword = await bcrypt.hash(password, 10);
+src/scripts/create-temp-admin.ts:23:        password: hashedPassword,
+src/scripts/seed.ts:12:    const adminPassword = 'adminpassword123'; // Change this in production!
+src/scripts/seed.ts:21:            password: hashedPassword,
+src/scripts/verify-admin-access.ts:24:        password: 'password123',
+src/scripts/verify-backfill.ts:22:        password: 'password123',
+src/scripts/fix-logins.ts:7:    // Get DataSource directly, avoiding private property hacks
+src/certificates/certificates.service.ts:508:    async verifyViewToken(token: string): Promise<any> {
+src/certificates/certificates.service.ts:510:            return this.jwtService.verify(token);
+src/certificates/certificates.service.ts:512:            this.logger.error('View token verification failed', error.message);
+src/certificates/certificates.module.ts:19:                secret: configService.get<string>('JWT_SECRET'),
+src/certificates/certificates.controller.ts:74:    @Get(':id/view-token')
+src/certificates/certificates.controller.ts:83:        const token = await this.certificatesService.generateViewToken(id, req.user);
+src/certificates/certificates.controller.ts:84:        return { token };
+src/certificates/certificates.controller.ts:88:    // This allows the browser to load the PDF using the ?token= parameter
+src/certificates/certificates.controller.ts:90:    async stream(@Param('id') id: string, @Query('token') token: string, @Res() res: Response) {
+src/certificates/certificates.controller.ts:91:        const payload = await this.certificatesService.verifyViewToken(token);
+src/certificates/certificates.controller.ts:93:            throw new UnauthorizedException('Invalid or expired view token');
+src/references/references.controller.ts:29:            // Extract base URL from request headers as fallback
+src/references/references.controller.ts:102:            // Extract base URL from request headers as fallback
+src/references/references.controller.ts:142:            // Extract base URL from request headers as fallback
+src/references/references.controller.ts:262:            // Extract base URL from request headers as fallback
+src/references/references.controller.ts:281:            // Try new secure link method first, fallback to legacy if no token
+src/references/references.controller.ts:285:                // Fallback to legacy PDF method if token doesn't exist
+src/references/references.controller.ts:286:                if (error.message?.includes('secure token')) {
+src/references/references.controller.ts:308:    // Alias route for convenience: GET /api/v1/reference/:token
+src/references/references.controller.ts:309:    @Get(':token')
+src/references/references.controller.ts:310:    async getReferenceFormByToken(@Param('token') token: string, @Ip() ipAddress: string) {
+src/references/references.controller.ts:311:        return this.getReferenceForm(token, ipAddress);
+src/references/references.controller.ts:314:    @Get('submit/:token')
+src/references/references.controller.ts:315:    async getReferenceForm(@Param('token') token: string, @Ip() ipAddress: string) {
+src/references/references.controller.ts:317:            const reference = await this.referencesService.validateAndOpenToken(token, ipAddress);
+src/references/references.controller.ts:332:                    token: reference.token,
+src/references/references.controller.ts:351:    @Post('submit/:token')
+src/references/references.controller.ts:353:        @Param('token') token: string,
+src/references/references.controller.ts:358:            const reference = await this.referencesService.submitReference(token, submissionData, ipAddress);
+src/references/references.service.ts:1523:    // New secure token-based methods
+src/references/references.service.ts:1528:    private getReferenceUrl(token: string, requestBaseUrl?: string): string {
+src/references/references.service.ts:1537:        const fallback = (process.env.FRONTEND_URL || process.env.APP_URL || '').trim();
+src/references/references.service.ts:1543:        const rawBaseUrl = configured || fallback || requestUrl || 'http://localhost:5173';
+src/references/references.service.ts:1548:            if (!configured && !fallback && !requestUrl) {
+src/references/references.service.ts:1568:        return `${baseUrl}/reference/submit/${token}`;
+src/references/references.service.ts:1578:    async findByToken(token: string): Promise<StaffReference> {
+src/references/references.service.ts:1579:        const reference = await this.referencesRepository.findOne({ where: { token } });
+src/references/references.service.ts:1581:            throw new NotFoundException('Invalid reference token');
+src/references/references.service.ts:1586:    async validateAndOpenToken(token: string, ipAddress?: string): Promise<StaffReference> {
+src/references/references.service.ts:1587:        const reference = await this.findByToken(token);
+src/references/references.service.ts:1589:        // Check if token is expired
+src/references/references.service.ts:1609:    async submitReference(token: string, submissionData: any, ipAddress?: string): Promise<StaffReference> {
+src/references/references.service.ts:1610:        const reference = await this.findByToken(token);
+src/references/references.service.ts:1612:        // Check if token is expired
+src/references/references.service.ts:1647:        // Generate secure token
+src/references/references.service.ts:1648:        const token = this.generateSecureToken();
+src/references/references.service.ts:1660:            token,
+src/references/references.service.ts:1668:            // Generate secure link (use request base URL as fallback if APP_BASE_URL not set)
+src/references/references.service.ts:1669:            const referenceUrl = this.getReferenceUrl(token, requestBaseUrl);
+src/references/references.service.ts:1703:        if (!reference.token) {
+src/references/references.service.ts:1704:            throw new BadRequestException('This reference does not have a secure token. Please use the legacy reminder method.');
+src/references/references.service.ts:1714:        const referenceUrl = this.getReferenceUrl(reference.token, requestBaseUrl);
+src/references/reference.entity.ts:44:    // New secure token system fields
+src/references/reference.entity.ts:46:    token: string;
+src/app.module.ts:18:import { ApiTokensModule } from './api-tokens/api-tokens.module';
+src/app.module.ts:37:        password: configService.get<string>('DB_PASSWORD'),
+src/staff/staff.controller.ts:371:    async getProfilePicture(@Param('id') id: string, @Request() req, @Query('token') token: string, @Res() res: Response) {
+src/staff/staff.controller.ts:373:        // Also accept token as query parameter for img src tags that can't send headers
