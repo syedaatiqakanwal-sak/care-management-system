@@ -1,5 +1,55 @@
-# Logs
-logs
+# ==========================================
+# STRICT SECRETS & ENVIRONMENT EXCLUSIONS
+# ==========================================
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.pub
+*.sql
+*.dump
+secrets/
+*.secret
+*.bat
+*.ps1
+
+# ==========================================
+# STRICT DOCKER EXCLUSIONS
+# ==========================================
+docker-compose*
+Dockerfile*
+*.dockerfile
+*.dockerignore
+docker/
+
+# ==========================================
+# DEPENDENCIES
+# ==========================================
+node_modules/
+**/node_modules/
+
+# ==========================================
+# BUILD OUTPUTS
+# ==========================================
+dist/
+**/dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+
+# ==========================================
+# USER UPLOADS & RUNTIME MEDIA
+# ==========================================
+uploads/
+**/uploads/
+*.pdf
+test_cert.pdf
+
+# ==========================================
+# LOGS
+# ==========================================
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,28 +57,23 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Secrets and local data
-.env
-.env.*
-!.env.example
-uploads
-backend/uploads
-*.zip
-*.tar.gz
-*.bak
-
-# Editor directories and files
+# ==========================================
+# OS & IDE ARTIFACTS
+# ==========================================
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.local
+
+# Zero-byte command artifacts
+backend@*
+tmp-app@*
+nest
+tsc

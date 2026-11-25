@@ -22,8 +22,10 @@ import { PoliciesManagePage } from './components/PoliciesManagePage'
 import { PolicyAnalytics } from './components/PolicyAnalytics'
 import { ReferenceSubmissionPage } from './components/ReferenceSubmissionPage'
 import { ReferenceAnalyticsPage } from './components/ReferenceAnalyticsPage'
+import { CertificatesStaffListPage } from './components/CertificatesStaffListPage'
+import { StaffCertificatesViewPage } from './components/StaffCertificatesViewPage'
+import { UserProfilePage } from './components/UserProfilePage'
 import { useState, useEffect } from 'react'
-import { Linkedin } from 'lucide-react'
 import { Notifications } from '@mantine/notifications'
 import { SidebarProvider, useSidebar } from './contexts/SidebarContext'
 import '@mantine/core/styles.css'
@@ -34,18 +36,20 @@ const GlobalStyles = () => (
   <style>
     {`
       /* GLOBAL NUCLEAR FIX FOR INTERACTIVITY & VISIBILITY */
-      html, body, #root {
+      html, body {
         pointer-events: auto !important;
         background-color: #F5F5F5 !important;
+        overflow-y: auto !important;
+        height: auto !important;
+        min-height: 100% !important;
+      }
+      #root {
+        pointer-events: auto !important;
+        background-color: #F5F5F5 !important;
+        min-height: 100% !important;
       }
 
-      /* Disable backdrop blurs globally - can cause rendering 'blackouts'.
-         Drawer overlay is exempt for a soft mobile dim + blur. */
-      *:not(.mantine-Drawer-overlay):not(.cpd-drawer-overlay) {
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
-      }
-
+      /* Modal & Drawer overlays */
       .mantine-Drawer-overlay.cpd-drawer-overlay,
       .cpd-drawer-overlay {
         backdrop-filter: blur(6px) !important;
@@ -77,10 +81,6 @@ const GlobalStyles = () => (
         pointer-events: auto !important;
         cursor: pointer !important;
       }
-
-      /* --- DELETED THE MODAL KILLER CODE HERE --- */
-      /* The lines that set display:none !important on .mantine-Modal-root were removed */
-      /* This allows your "Add Course" popup to finally show up! */
 
       /* Ensure the main content is visible and interactive */
       main, .mantine-AppShell-main {
@@ -115,15 +115,8 @@ const GlobalStyles = () => (
         color: rgba(30, 186, 242, 0.7);
       }
 
-      .mantine-AppShell-main,
-      .mantine-Card-root,
-      .mantine-Paper-root {
-        background-color: #E2E1E8;
-      }
-
-      .mantine-Card-root,
-      .mantine-Paper-root {
-        position: relative;
+      .mantine-AppShell-main {
+        background-color: #F8FAFC;
       }
 
       .mantine-Button-root[data-variant="filled"] {
@@ -147,52 +140,6 @@ const GlobalStyles = () => (
       .mantine-Button-root[data-disabled="true"] {
         opacity: 0.35;
       }
-
-      .mantine-Card-root::before, .mantine-Paper-root::before {
-        content: "";
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        width: 10px;
-        height: 10px;
-        background: rgba(229, 22, 144, 0.35);
-        clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-        pointer-events: none;
-      }
-
-      .mantine-Card-root::after, .mantine-Paper-root::after {
-        content: "";
-        position: absolute;
-        bottom: 8px;
-        left: 8px;
-        width: 12px;
-        height: 12px;
-        background: rgba(30, 186, 242, 0.2);
-        clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%);
-        pointer-events: none;
-      }
-
-      .ilc-triangle-accent::before {
-        content: "";
-        position: absolute;
-        inset: 10px auto auto 10px;
-        width: 12px;
-        height: 12px;
-        background: rgba(229, 22, 144, 0.35);
-        clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-        pointer-events: none;
-      }
-
-      .ilc-hex-accent::after {
-        content: "";
-        position: absolute;
-        inset: auto 10px 10px auto;
-        width: 14px;
-        height: 14px;
-        background: rgba(30, 186, 242, 0.2);
-        clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%);
-        pointer-events: none;
-      }
     `}
   </style>
 );
@@ -201,60 +148,52 @@ function AppLayoutInner({ children, searchQuery, onSearch }: { children: React.R
   const { collapsed, toggle } = useSidebar();
   const [mobileOpened, setMobileOpened] = useState(false);
   
+  // Auto-close mobile drawer after 30 seconds of inactivity
+  useEffect(() => {
+    if (!mobileOpened) return;
+    const timer = setTimeout(() => {
+      setMobileOpened(false);
+    }, 30000);
+    return () => clearTimeout(timer);
+  }, [mobileOpened]);
+  
   return (
     <>
       <AppShell
-        header={{ height: 80 }}
-        footer={{ height: 52 }}
+        layout="alt"
+        header={{ height: 76 }}
         navbar={{
-          width: { base: 0, sm: collapsed ? 68 : 240 },
+          width: { base: 0, sm: collapsed ? 72 : 260 },
           breakpoint: 'sm',
           collapsed: { mobile: true },
         }}
-        padding="md"
+        padding={{ base: 6, sm: 10 }}
         transitionDuration={200}
         styles={{
           header: {
-            background: 'rgba(30, 186, 242, 0.2)',
-            borderBottom: '1px solid rgba(30, 186, 242, 0.35)',
-            boxShadow: '0 4px 15px rgba(30, 186, 242, 0.2)',
+            background: '#1EBAF2',
+            borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.08)',
+            zIndex: 101,
           },
           navbar: {
             backgroundColor: '#ffffff',
-            borderRight: '1px solid rgba(0, 0, 0, 0.06)',
-            // Full height between header and footer — no white gap under sidebar
+            borderRight: '1px solid rgba(0, 0, 0, 0.08)',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            height: 'calc(100dvh - 80px - 52px)',
+            height: '100dvh',
             padding: 0,
             transition: 'width 200ms ease',
-          },
-          footer: {
-            background: 'linear-gradient(180deg, #ffffff 0%, #f7f8fa 100%)',
-            borderTop: '1px solid rgba(0, 0, 0, 0.06)',
-            boxShadow: '0 -4px 18px rgba(15, 23, 42, 0.04)',
-            padding: 0,
-            zIndex: 100,
+            zIndex: 102,
           },
         }}
       >
         <AppShell.Header>
-          <Group h="100%" px={0} gap={0} style={{ width: '100%' }}>
-            <Burger
-              opened={mobileOpened}
-              onClick={() => setMobileOpened(!mobileOpened)}
-              hiddenFrom="sm"
-              size="sm"
-              color="white"
-              ml="sm"
-              style={{ flexShrink: 0 }}
-              aria-label={mobileOpened ? 'Close navigation menu' : 'Open navigation menu'}
-            />
-            <Box style={{ flex: 1, width: '100%' }}>
-              <TopHeader searchQuery={searchQuery} onSearch={onSearch} />
-            </Box>
-          </Group>
+          <TopHeader
+            mobileOpened={mobileOpened}
+            onToggleMobile={() => setMobileOpened(!mobileOpened)}
+          />
         </AppShell.Header>
 
         <AppShell.Navbar hiddenFrom="sm">
@@ -272,7 +211,7 @@ function AppLayoutInner({ children, searchQuery, onSearch }: { children: React.R
           backgroundColor: '#F5F5F5',
           display: 'flex',
           flexDirection: 'column',
-          minHeight: 'calc(100dvh - 80px - 52px)',
+          minHeight: '100dvh',
         }}
       >
         <Box style={{ flex: 1, width: '100%', minHeight: 0 }}>
@@ -281,113 +220,6 @@ function AppLayoutInner({ children, searchQuery, onSearch }: { children: React.R
           </PageWrapper>
         </Box>
       </AppShell.Main>
-
-      <AppShell.Footer>
-        <Box
-          px={{ base: 'md', sm: 'lg' }}
-          style={{
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            position: 'relative',
-          }}
-        >
-          {/* Brand accent line */}
-          <Box
-            aria-hidden
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 2,
-              background: 'linear-gradient(90deg, #1EBAF2 0%, #E51690 55%, transparent 100%)',
-            }}
-          />
-
-          <Group gap={10} wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
-            <Box
-              aria-hidden
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 8,
-                flexShrink: 0,
-                background: 'linear-gradient(135deg, #1EBAF2 0%, #0F7296 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 8px rgba(30, 186, 242, 0.28)',
-              }}
-            >
-              <Text size="xs" fw={900} c="white" style={{ fontSize: 11, letterSpacing: '-0.02em' }}>
-                LC
-              </Text>
-            </Box>
-            <Box style={{ minWidth: 0 }}>
-              <Text
-                size="xs"
-                fw={700}
-                c="#1f2937"
-                style={{ lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-              >
-                Lets Care All Ltd
-              </Text>
-              <Text size="xs" c="dimmed" fw={500} style={{ lineHeight: 1.2, fontSize: 11 }}>
-                © {new Date().getFullYear()} All rights reserved
-              </Text>
-            </Box>
-          </Group>
-
-          <Anchor
-            href="https://pk.linkedin.com/in/syeda-atiqa-kanwal-838490390?trk=people-guest_people_search-card"
-            target="_blank"
-            rel="noopener noreferrer"
-            underline="never"
-            aria-label="Developer LinkedIn profile"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              flexShrink: 0,
-              padding: '6px 10px',
-              borderRadius: 999,
-              background: 'rgba(30, 186, 242, 0.08)',
-              border: '1px solid rgba(30, 186, 242, 0.18)',
-              transition: 'background 160ms ease, border-color 160ms ease, box-shadow 160ms ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(30, 186, 242, 0.14)';
-              e.currentTarget.style.borderColor = 'rgba(30, 186, 242, 0.35)';
-              e.currentTarget.style.boxShadow = '0 2px 10px rgba(30, 186, 242, 0.15)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(30, 186, 242, 0.08)';
-              e.currentTarget.style.borderColor = 'rgba(30, 186, 242, 0.18)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          >
-            <Text size="xs" fw={600} c="#0F7296" style={{ lineHeight: 1 }}>
-              Developer
-            </Text>
-            <Box
-              style={{
-                width: 20,
-                height: 20,
-                borderRadius: 6,
-                backgroundColor: '#0A66C2',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Linkedin size={12} color="white" strokeWidth={2.25} />
-            </Box>
-          </Anchor>
-        </Box>
-      </AppShell.Footer>
       </AppShell>
 
       {/* Mobile Drawer */}
@@ -397,8 +229,8 @@ function AppLayoutInner({ children, searchQuery, onSearch }: { children: React.R
         onClose={() => setMobileOpened(false)}
         withCloseButton={false}
         withOverlay
-        closeOnEscape
-        closeOnClickOutside
+        closeOnEscape={false}
+        closeOnClickOutside={false}
         padding={0}
         size={260}
         transitionProps={{ duration: 240, timingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)' }}
@@ -424,10 +256,7 @@ function AppLayoutInner({ children, searchQuery, onSearch }: { children: React.R
         }}
       >
         <Box style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <Sidebar
-            onLinkClick={() => setMobileOpened(false)}
-            onClose={() => setMobileOpened(false)}
-          />
+          <Sidebar />
         </Box>
       </Drawer>
     </>
@@ -436,11 +265,9 @@ function AppLayoutInner({ children, searchQuery, onSearch }: { children: React.R
 
 function AppLayout({ children, searchQuery, onSearch }: { children: React.ReactNode, searchQuery?: string, onSearch?: (val: string) => void }) {
   return (
-    <SidebarProvider>
-      <AppLayoutInner searchQuery={searchQuery} onSearch={onSearch}>
-        {children}
-      </AppLayoutInner>
-    </SidebarProvider>
+    <AppLayoutInner searchQuery={searchQuery} onSearch={onSearch}>
+      {children}
+    </AppLayoutInner>
   )
 }
 
@@ -465,7 +292,8 @@ function App() {
     <MantineProvider theme={theme} defaultColorScheme="light">
       <GlobalStyles />
       <Notifications position="top-right" zIndex={2000} />
-      <BrowserRouter>
+      <SidebarProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -492,9 +320,31 @@ function App() {
               </AdminRoute>
             } />
 
+            <Route path="/dashboard/certificates" element={
+              <AdminRoute>
+                <AppLayout searchQuery={searchQuery} onSearch={setSearchQuery}>
+                  <CertificatesStaffListPage />
+                </AppLayout>
+              </AdminRoute>
+            } />
+
+            <Route path="/dashboard/certificates/staff/:id" element={
+              <AdminRoute>
+                <AppLayout searchQuery={searchQuery} onSearch={setSearchQuery}>
+                  <StaffCertificatesViewPage />
+                </AppLayout>
+              </AdminRoute>
+            } />
+
             <Route path="/dashboard/me" element={
               <AppLayout searchQuery={searchQuery} onSearch={setSearchQuery}>
                 <StaffProfilePage />
+              </AppLayout>
+            } />
+
+            <Route path="/dashboard/profile" element={
+              <AppLayout>
+                <UserProfilePage />
               </AppLayout>
             } />
 
@@ -558,6 +408,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      </SidebarProvider>
     </MantineProvider>
   )
 }

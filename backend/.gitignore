@@ -1,1 +1,29 @@
+# ==========================================
+# STRICT SECRETS & ENVIRONMENT EXCLUSIONS
+# ==========================================
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.sql
+
+# ==========================================
+# DOCKER EXCLUSIONS
+# ==========================================
+docker-compose*
+Dockerfile*
+*.dockerignore
+
+# ==========================================
+# BUILD & DEPENDENCIES
+# ==========================================
+node_modules/
+dist/
+uploads/
+*.pdf
 src/scripts/
+backend@*
+nest
+tmp-app@*
+tsc

@@ -1,31 +1,171 @@
-import { Group, ActionIcon, Indicator, Avatar, Box, Text, Divider, TextInput, Menu, UnstyledButton } from '@mantine/core';
-import { Bell, Search, Settings, User, LogOut, ShieldCheck, Mail } from 'lucide-react';
+import { Group, ActionIcon, Indicator, Avatar, Box, Text, Divider, Menu, UnstyledButton, Burger, Tooltip } from '@mantine/core';
+import { Bell, Settings, User, LogOut, ShieldCheck, Mail, Clock, Menu as MenuIcon } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { notifications as mantineNotifications } from '@mantine/notifications';
+import { useSidebar } from '../contexts/SidebarContext';
 
-export const TopHeader = ({ searchQuery, onSearch }: { searchQuery?: string, onSearch?: (val: string) => void }) => {
+export const DigitalClock = () => {
+    const [time, setTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setTime(new Date());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const timeString = time.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+    });
+
+    const dateString = time.toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+    });
+
+    return (
+        <Group
+            gap={12}
+            px={18}
+            py={7}
+            style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.1)',
+                borderRadius: 999,
+                border: '1px solid rgba(0, 0, 0, 0.15)',
+                boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.08)',
+                flexShrink: 0,
+            }}
+            visibleFrom="md"
+        >
+            <Clock size={15} color="#111827" style={{ opacity: 0.9 }} />
+            <Text
+                fw={900}
+                size="xs"
+                c="#111827"
+                style={{
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    letterSpacing: '0.8px',
+                    fontVariantNumeric: 'tabular-nums',
+                    lineHeight: 1,
+                }}
+            >
+                {timeString}
+            </Text>
+            <Divider orientation="vertical" h={14} color="rgba(0, 0, 0, 0.2)" />
+            <Text
+                fw={700}
+                size="11.5px"
+                c="#1f2937"
+                style={{ lineHeight: 1 }}
+            >
+                {dateString}
+            </Text>
+        </Group>
+    );
+};
+
+export const TopHeader = ({
+    searchQuery,
+    onSearch,
+    mobileOpened,
+    onToggleMobile,
+}: {
+    searchQuery?: string;
+    onSearch?: (val: string) => void;
+    mobileOpened?: boolean;
+    onToggleMobile?: () => void;
+}) => {
     const navigate = useNavigate();
+    const { collapsed, toggle } = useSidebar();
     const [notifications, setNotifications] = useState<any[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const knownIdsRef = useRef<Set<string>>(new Set());
+
+    const [userName, setUserName] = useState<string>(() => localStorage.getItem('userName') || 'User');
+    const [headerAvatarUrl, setHeaderAvatarUrl] = useState<string | null>(null);
+    const avatarBlobRef = useRef<string | null>(null);
+
+    const fetchMyAvatar = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            const res = await axios.get(`/api/v1/staff/me/profile-picture?t=${Date.now()}`, {
+                headers: { Authorization: `Bearer ${token}` },
+                responseType: 'blob'
+            });
+            if (avatarBlobRef.current) {
+                URL.revokeObjectURL(avatarBlobRef.current);
+            }
+            const blobUrl = URL.createObjectURL(res.data);
+            avatarBlobRef.current = blobUrl;
+            setHeaderAvatarUrl(blobUrl);
+        } catch {
+            // ignore if no custom photo uploaded yet
+        }
+    };
+
+    const syncUserProfile = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            const res = await axios.get('/api/v1/staff/me', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const p = res.data;
+            const fullName = `${p.firstName || ''} ${p.lastName || ''}`.trim();
+            if (fullName) {
+                setUserName(fullName);
+                localStorage.setItem('userName', fullName);
+            }
+            if (p.profilePicture) {
+                fetchMyAvatar();
+            } else {
+                if (avatarBlobRef.current) {
+                    URL.revokeObjectURL(avatarBlobRef.current);
+                    avatarBlobRef.current = null;
+                }
+                setHeaderAvatarUrl(null);
+            }
+        } catch {
+            fetchMyAvatar();
+        }
+    };
+
+    useEffect(() => {
+        syncUserProfile();
+
+        const onUserUpdated = () => {
+            syncUserProfile();
+        };
+
+        window.addEventListener('userProfileUpdated', onUserUpdated);
+        return () => {
+            window.removeEventListener('userProfileUpdated', onUserUpdated);
+            if (avatarBlobRef.current) {
+                URL.revokeObjectURL(avatarBlobRef.current);
+            }
+        };
+    }, []);
 
     const fetchNotifications = async () => {
         try {
             const token = localStorage.getItem('token');
             if (!token) return;
-            console.log('Fetching notifications...'); // DEBUG
             const res = await axios.get('/api/v1/notifications', {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            console.log('Notifications fetched:', res.data); // DEBUG
             const fetched = res.data;
             setNotifications(fetched);
             setUnreadCount(fetched.filter((n: any) => !n.isRead).length);
 
-            // Check for new unread notifications to popup
             // Check for new unread notifications to popup
             const newUnread = fetched.filter((n: any) => !n.isRead && !knownIdsRef.current.has(n.id));
             const certNotifications = newUnread.filter((n: any) => n.metadata?.certificateId);
@@ -33,7 +173,6 @@ export const TopHeader = ({ searchQuery, onSearch }: { searchQuery?: string, onS
 
             // 1. Handle Certificate Notifications
             if (certNotifications.length > 1) {
-                // Grouped Notification
                 mantineNotifications.show({
                     title: 'Certificates Ready',
                     message: (
@@ -49,10 +188,8 @@ export const TopHeader = ({ searchQuery, onSearch }: { searchQuery?: string, onS
                     autoClose: 5000,
                     withCloseButton: true,
                 });
-                // Mark all as known so we don't show them again
                 certNotifications.forEach((n: any) => knownIdsRef.current.add(n.id));
             } else if (certNotifications.length === 1) {
-                // Single Notification
                 const n = certNotifications[0];
                 mantineNotifications.show({
                     title: n.title,
@@ -72,11 +209,11 @@ export const TopHeader = ({ searchQuery, onSearch }: { searchQuery?: string, onS
                 knownIdsRef.current.add(n.id);
             }
 
-            // 2. Handle Other Notifications (Show individual popups)
+            // 2. Handle Other Notifications
             otherNotifications.forEach((n: any) => {
                 mantineNotifications.show({
                     title: n.title,
-                    message: n.message, // Standard message for others
+                    message: n.message,
                     color: 'brandBlue',
                     icon: <Mail size={18} />,
                     autoClose: 5000,
@@ -85,7 +222,7 @@ export const TopHeader = ({ searchQuery, onSearch }: { searchQuery?: string, onS
                 knownIdsRef.current.add(n.id);
             });
 
-            // 3. Mark existing read ones as known just in case
+            // 3. Mark existing read ones as known
             fetched.forEach((n: any) => {
                 if (n.isRead) knownIdsRef.current.add(n.id);
             });
@@ -95,7 +232,6 @@ export const TopHeader = ({ searchQuery, onSearch }: { searchQuery?: string, onS
         }
     };
 
-    // Polling every 60s
     useEffect(() => {
         fetchNotifications();
         const interval = setInterval(fetchNotifications, 300000);
@@ -108,17 +244,10 @@ export const TopHeader = ({ searchQuery, onSearch }: { searchQuery?: string, onS
             await axios.patch(`/api/v1/notifications/${id}/read`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            // Update local state
             setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
             setUnreadCount(prev => Math.max(0, prev - 1));
 
-            // Interaction logic
             if (metadata?.certificateId) {
-                // Navigate to certificates or trigger download?
-                // For now, let's navigate to dashboard/certificates (if that route existed) or just alert
-                // Actually the user just wants to know "download it".
-                // I'll assume navigating to the My Certificates page is best if it exists, or just root.
-                // Assuming /dashboard loads My Certificates by default for staff.
                 navigate('/dashboard');
             }
         } catch (error) {
@@ -127,57 +256,78 @@ export const TopHeader = ({ searchQuery, onSearch }: { searchQuery?: string, onS
     };
 
     return (
-        <Group justify="space-between" px={{ base: 'sm', md: 'xl' }} h="100%" style={{ background: 'transparent', width: '100%', gap: 12, flexWrap: 'wrap' }}>
-            <Link to="/dashboard" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', color: 'inherit', gap: '12px', flexShrink: 0 }}>
-                <Box
-                    style={{
-                        backgroundColor: 'white',
-                        padding: '5px',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 6px 12px rgba(0,0,0,0.1)'
-                    }}
-                >
-                    <img src="/assets/logo.png" alt="Inspire London College Logo" style={{ height: 36, width: 'auto' }} />
-                </Box>
-                <Box hiddenFrom="sm">
-                    <Text fw={900} size="lg" c="#1A1A1A" style={{ lineHeight: 1, letterSpacing: '-0.5px' }}>Inspire London College</Text>
-                </Box>
-                <Box visibleFrom="sm">
-                    <Text fw={900} size="24px" c="#1A1A1A" style={{ lineHeight: 1, letterSpacing: '-0.5px' }}>Inspire London College</Text>
-                    <Text size="11px" c="#1EBAF2" opacity={0.9} fw={700} tt="uppercase" style={{ fontSize: '10px', letterSpacing: '1.5px', marginTop: '4px' }}>learning management portal</Text>
-                </Box>
-            </Link>
+        <Group
+            justify="space-between"
+            px={{ base: 'md', sm: 'xl' }}
+            h="100%"
+            style={{
+                background: 'transparent',
+                width: '100%',
+                gap: 16,
+                flexWrap: 'nowrap',
+            }}
+        >
+            {/* Left Side: Mobile Burger / Desktop Toggle + Title (Bigger Black and Bold) */}
+            <Group gap={14} wrap="nowrap" style={{ flex: '1 1 auto', maxWidth: '55%', minWidth: 0 }}>
+                {/* Mobile Drawer Burger */}
+                {onToggleMobile && (
+                    <Burger
+                        opened={Boolean(mobileOpened)}
+                        onClick={onToggleMobile}
+                        hiddenFrom="sm"
+                        size="sm"
+                        color="#111827"
+                        aria-label={mobileOpened ? 'Close navigation menu' : 'Open navigation menu'}
+                    />
+                )}
 
-            {/* Search Bar - Center */}
-            <TextInput
-                placeholder="Search staff..."
-                size="xs"
-                radius="xl"
-                leftSection={<Search size={14} color="white" />}
-                value={searchQuery}
-                onChange={(e) => onSearch?.(e.currentTarget.value)}
-                style={{ flex: 1, maxWidth: 700, margin: '0 auto' }}
-                styles={{
-                    input: {
-                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                        border: '1px solid rgba(30, 186, 242, 0.35)',
-                        color: '#333333',
-                        '&::placeholder': { color: 'rgba(51, 51, 51, 0.6)' }
-                    }
-                }}
-                visibleFrom="sm"
-            />
+                {/* Desktop Sidebar Toggle */}
+                <Tooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} position="bottom" openDelay={200}>
+                    <ActionIcon
+                        variant="filled"
+                        color="rgba(0, 0, 0, 0.1)"
+                        size="lg"
+                        radius="md"
+                        onClick={toggle}
+                        visibleFrom="sm"
+                        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                        style={{ border: '1px solid rgba(0, 0, 0, 0.15)', flexShrink: 0 }}
+                    >
+                        <MenuIcon size={18} color="#111827" />
+                    </ActionIcon>
+                </Tooltip>
+
+                <Box style={{ minWidth: 0, flex: 1 }}>
+                    <Text
+                        fw={900}
+                        size="24px"
+                        style={{
+                            color: '#082f49',
+                            textShadow: '0 1px 1px rgba(255, 255, 255, 0.45), 0 -1px 1px rgba(0, 0, 0, 0.55)',
+                            lineHeight: 1.15,
+                            letterSpacing: '-0.4px',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                        }}
+                    >
+                        Learning Management Portal
+                    </Text>
+                </Box>
+            </Group>
+
+            {/* Center: Digital Clock with generous space/gap */}
+            <Box style={{ display: 'flex', justifyContent: 'center', margin: '0 auto' }}>
+                <DigitalClock />
+            </Box>
 
             {/* Right Side - Bell and Profile */}
-            <Group gap="sm" style={{ flexShrink: 0, marginLeft: 'auto', flexWrap: 'wrap' }}>
+            <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0, marginLeft: 'auto' }}>
                 <Menu shadow="md" width={320} position="bottom-end" radius="md">
                     <Menu.Target>
-                        <ActionIcon variant="filled" color="rgba(255,255,255,0.1)" size="lg" radius="xl">
+                        <ActionIcon variant="filled" color="rgba(0, 0, 0, 0.1)" size="lg" radius="xl" style={{ border: '1px solid rgba(0, 0, 0, 0.15)' }}>
                             <Indicator disabled={unreadCount === 0} color="#E51690" size={8} offset={2} withBorder processing>
-                                <Bell size={18} color="#1A1A1A" />
+                                <Bell size={18} color="#111827" />
                             </Indicator>
                         </ActionIcon>
                     </Menu.Target>
@@ -204,22 +354,36 @@ export const TopHeader = ({ searchQuery, onSearch }: { searchQuery?: string, onS
                     </Menu.Dropdown>
                 </Menu>
 
-                <Divider orientation="vertical" h={32} my="auto" color="rgba(255,255,255,0.2)" visibleFrom="sm" />
+                <Divider orientation="vertical" h={30} my="auto" color="rgba(0, 0, 0, 0.18)" visibleFrom="sm" />
 
                 <Menu shadow="md" width={220} position="bottom-end" radius="md">
                     <Menu.Target>
                         <UnstyledButton>
                             <Group gap="xs" style={{ cursor: 'pointer' }}>
                                 <Box visibleFrom="md" ta="right">
-                                    <Text fw={800} size="13px" c="white" lh={1}>
-                                        {localStorage.getItem('userName') || 'User'}
+                                    <Text fw={800} size="13px" c="#111827" lh={1}>
+                                        {userName || 'User'}
                                     </Text>
-                                    <Text size="10px" c="white" opacity={0.7} fw={700} mt={2}>
-                                        {(localStorage.getItem('role') || '').toLowerCase() === 'admin' ? 'Admin Portal 🚀' : 'Staff Portal'}
+                                    <Text size="10px" c="#374151" fw={700} mt={2}>
+                                        {(localStorage.getItem('role') || '').toLowerCase() === 'admin' ? 'Admin Portal' : 'Staff Portal'}
                                     </Text>
                                 </Box>
-                                <Avatar color="white" radius="xl" size="md" styles={{ placeholder: { backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 900 } }}>
-                                    {localStorage.getItem('userName')?.charAt(0) || 'U'}
+                                <Avatar
+                                    src={headerAvatarUrl}
+                                    color="blue"
+                                    radius="xl"
+                                    size="md"
+                                    imageProps={{ loading: 'lazy' }}
+                                    styles={{
+                                        placeholder: {
+                                            backgroundColor: '#ffffff',
+                                            color: '#111827',
+                                            fontWeight: 900,
+                                            border: '1px solid rgba(0, 0, 0, 0.15)',
+                                        }
+                                    }}
+                                >
+                                    {userName?.charAt(0)?.toUpperCase() || 'U'}
                                 </Avatar>
                             </Group>
                         </UnstyledButton>
@@ -227,15 +391,13 @@ export const TopHeader = ({ searchQuery, onSearch }: { searchQuery?: string, onS
 
                     <Menu.Dropdown>
                         <Menu.Label>Account Management</Menu.Label>
-                        {(localStorage.getItem('role') || '').toLowerCase() !== 'admin' && (
-                            <Menu.Item
-                                component={Link}
-                                to="/dashboard/me"
-                                leftSection={<User size={14} />}
-                            >
-                                View Profile
-                            </Menu.Item>
-                        )}
+                        <Menu.Item
+                            component={Link}
+                            to="/dashboard/profile"
+                            leftSection={<User size={14} color="#0284c7" />}
+                        >
+                            View Profile
+                        </Menu.Item>
                         <Menu.Item
                             component={Link}
                             to="/settings"
@@ -249,7 +411,14 @@ export const TopHeader = ({ searchQuery, onSearch }: { searchQuery?: string, onS
                         <Menu.Item
                             color="red"
                             leftSection={<LogOut size={14} />}
-                            onClick={() => navigate('/')}
+                            onClick={() => {
+                                localStorage.removeItem('token');
+                                localStorage.removeItem('userName');
+                                localStorage.removeItem('role');
+                                localStorage.removeItem('userId');
+                                localStorage.removeItem('userEmail');
+                                navigate('/');
+                            }}
                         >
                             Sign Out
                         </Menu.Item>

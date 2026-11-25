@@ -17,6 +17,13 @@ export class UsersService {
         });
     }
 
+    async findById(id: string): Promise<User | null> {
+        return this.usersRepository.findOne({
+            where: { id },
+            select: ['id', 'email', 'password', 'role', 'isActive'],
+        });
+    }
+
     async findForReset(email: string): Promise<User | null> {
         return this.usersRepository.findOne({
             where: { email },

@@ -18,6 +18,7 @@ import { CoursesModule } from './courses/courses.module';
 import { PoliciesModule } from './policies/policies.module';
 import { ApiTokensModule } from './api-tokens/api-tokens.module';
 import { N8nAutomationModule } from './n8n-automation/n8n-automation.module';
+import { IsolatedCertificatesModule } from './isolated-certificates/isolated-certificates.module';
 import { DevAwareThrottlerGuard } from './auth/dev-aware-throttler.guard';
 import { JwtOrApiTokenGuard } from './staff/jwt-or-api-token.guard';
 
@@ -57,6 +58,7 @@ import { JwtOrApiTokenGuard } from './staff/jwt-or-api-token.guard';
     PoliciesModule,
     ApiTokensModule,
     N8nAutomationModule,
+    IsolatedCertificatesModule,
   ],
   controllers: [AppController],
   providers: [

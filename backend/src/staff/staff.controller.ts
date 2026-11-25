@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Post, Delete, Body, UseGuards, Request, Param, ForbiddenException, Res, Query, UseInterceptors, UploadedFile, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Put, Post, Patch, Delete, Body, UseGuards, Request, Param, ForbiddenException, Res, Query, UseInterceptors, UploadedFile, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import type { Response } from 'express';
 import { StaffService } from './staff.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -34,24 +34,31 @@ export class StaffController {
     ) { }
 
     @Get('me')
-    @Roles(UserRole.STAFF)
+    @Roles(UserRole.ADMIN, UserRole.STAFF)
     getMyProfile(@Request() req) {
-        return this.staffService.getProfileByUserId(req.user.userId);
+        const userId = req.user.userId || req.user.id;
+        return this.staffService.getProfileByUserId(userId);
     }
 
     @Put('me')
-    @Roles(UserRole.STAFF)
-    updateMyProfile(@Request() req, @Body() body: UpdateStaffDto) {
-        // ValidationPipe will whitelist only allowed fields from DTO
-        // Check for disallowed fields for Staff logic if needed, but DTO handles structure.
-        // For 'me', maybe we restrict some fields?
-        // Previously we stripped employmentStatus, ilccsNumber, etc.
-        // We can create a separate UpdateStaffSelfDto if we want restricted access, 
-        // or just manually strip the sensitive ones again if using the same DTO.
+    @Roles(UserRole.ADMIN, UserRole.STAFF)
+    updateMyProfile(@Request() req, @Body() body: any) {
+        const userId = req.user.userId || req.user.id;
+        const isAdmin = req.user.role === UserRole.ADMIN;
+        
+        // Staff CANNOT change their name
+        if (!isAdmin) {
+            delete body.firstName;
+            delete body.lastName;
+            delete body.fullName;
+        }
+        delete body.email;
+        delete body.role;
+        delete body.ilccsNumber;
+        delete body.lcaNumber;
+        delete body.employmentStatus;
 
-        // Let's strip sensitive admin-only fields for self-update:
-        const { employmentStatus, ilccsNumber, lcaNumber, inductionDate, rapidInductionDate, role, ...allowed } = body as any;
-        return this.staffService.updateProfileByUserId(req.user.userId, allowed);
+        return this.staffService.updateProfileByUserId(userId, body);
     }
 
     @Get(':id')
@@ -116,6 +123,16 @@ export class StaffController {
         if (!isAdmin && !isSelf) throw new ForbiddenException('Access denied');
 
         return this.staffService.addAddress(id, body);
+    }
+
+    @Patch(':id/addresses/:addressId')
+    @Roles(UserRole.ADMIN, UserRole.STAFF)
+    updateAddress(@Param('id') id: string, @Param('addressId') addressId: string, @Body() body: CreateAddressDto, @Request() req) {
+        const isSelf = req.user.userId === id;
+        const isAdmin = req.user.role === UserRole.ADMIN;
+        if (!isAdmin && !isSelf) throw new ForbiddenException('Access denied');
+
+        return this.staffService.updateAddress(id, addressId, body);
     }
 
     @Delete(':id/addresses/:addressId')
@@ -312,17 +329,18 @@ export class StaffController {
                     }
                     cb(null, uploadDir);
                 },
-                filename: (req, file, cb) => {
+                filename: (req: any, file, cb) => {
                     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-                    cb(null, `${req.params.id}-${uniqueSuffix}${extname(file.originalname)}`);
+                    const userPrefix = (req.params.id === 'me' ? (req.user?.userId || req.user?.id || 'user') : req.params.id);
+                    cb(null, `${userPrefix}-${uniqueSuffix}${extname(file.originalname)}`);
                 },
             }),
             limits: {
                 fileSize: 5 * 1024 * 1024, // 5MB limit
             },
             fileFilter: (req, file, cb) => {
-                if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
-                    return cb(new BadRequestException('Only image files are allowed!'), false);
+                if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp|jfif|pjpeg)$/i)) {
+                    return cb(new BadRequestException('Only image files (png, jpg, jpeg, webp, jfif) are allowed!'), false);
                 }
                 cb(null, true);
             },
@@ -333,8 +351,11 @@ export class StaffController {
         @Request() req,
         @UploadedFile() file: UploadedImageFile,
     ) {
+        // Resolve target user ID
+        const targetUserId = id === 'me' ? (req.user.userId || req.user.id) : id;
+
         // Access Control
-        const isSelf = req.user.userId === id;
+        const isSelf = (req.user.userId || req.user.id) === targetUserId;
         const isAdmin = req.user.role === UserRole.ADMIN;
         if (!isAdmin && !isSelf) {
             throw new ForbiddenException('You can only upload your own profile picture.');
@@ -344,12 +365,12 @@ export class StaffController {
             throw new BadRequestException('No file uploaded');
         }
 
-        // File validation - only images allowed for profile pictures
-        const allowedTypes = ['.jpg', '.jpeg', '.png', '.gif'];
+        // File validation - allowed formats (png, jpg, jpeg, webp, jfif) max 5MB
+        const allowedTypes = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.jfif'];
         const fileExt = path.extname(file.originalname).toLowerCase();
 
         if (!allowedTypes.includes(fileExt)) {
-            throw new BadRequestException('Only image files are allowed for profile pictures!');
+            throw new BadRequestException('Only image files (png, jpg, jpeg, webp, jfif) are allowed!');
         }
 
         if (file.size > 5 * 1024 * 1024) {
@@ -357,7 +378,7 @@ export class StaffController {
         }
 
         // Get profile to access staffId
-        const profile = await this.staffService.getProfileByUserId(id);
+        const profile = await this.staffService.getProfileByUserId(targetUserId);
         
         // Delete old profile picture if exists
         if (profile.profilePicture) {
@@ -373,12 +394,12 @@ export class StaffController {
         const relativePath = file.path.startsWith(process.cwd())
             ? file.path.replace(process.cwd() + path.sep, '').replace(/\\/g, '/')
             : file.path.replace(/\\/g, '/');
-        await this.staffService.updateProfileByUserId(id, { profilePicture: relativePath });
+        await this.staffService.updateProfileByUserId(targetUserId, { profilePicture: relativePath });
 
         return {
             success: true,
             message: 'Profile picture uploaded successfully',
-            path: `/api/v1/staff/${id}/profile-picture`,
+            path: `/api/v1/staff/${targetUserId}/profile-picture`,
         };
     }
 
@@ -393,28 +414,37 @@ export class StaffController {
         if (!rawToken) {
             throw new UnauthorizedException('Authentication required');
         }
+        let targetUserId = id;
         try {
-            this.jwtService.verify(rawToken);
+            const payload = this.jwtService.verify(rawToken);
+            if (id === 'me') {
+                targetUserId = req.user?.userId || req.user?.id || payload?.sub || payload?.userId || payload?.id;
+            }
         } catch {
             throw new UnauthorizedException('Invalid or expired token');
         }
         
-        const profile = await this.staffService.getProfileByUserId(id);
-        
-        if (!profile.profilePicture) {
+        let profile = await this.staffService.getProfileByUserId(targetUserId).catch(() => null);
+        if (!profile) {
+            profile = await this.staffService.getProfileByStaffId(targetUserId).catch(() => null);
+        }
+
+        if (!profile || !profile.profilePicture) {
             return res.status(404).json({ message: 'Profile picture not found' });
         }
 
         // Construct full path and validate it's within allowed directory
         const uploadsBase = path.resolve(process.cwd(), 'uploads', 'profile-pictures');
-        const filePath = path.resolve(
-            profile.profilePicture.startsWith('/')
-                ? profile.profilePicture
-                : path.join(process.cwd(), profile.profilePicture)
-        );
+        const rawPath = profile.profilePicture.startsWith('/')
+            ? profile.profilePicture.slice(1)
+            : profile.profilePicture;
+        const filePath = path.resolve(process.cwd(), rawPath);
+
+        const normBase = path.normalize(uploadsBase).toLowerCase();
+        const normFile = path.normalize(filePath).toLowerCase();
 
         // Prevent path traversal: ensure resolved path is within uploads directory
-        if (!filePath.startsWith(uploadsBase)) {
+        if (!normFile.startsWith(normBase)) {
             return res.status(403).json({ message: 'Access denied' });
         }
 
@@ -424,9 +454,17 @@ export class StaffController {
 
         // Set proper content type based on file extension
         const ext = path.extname(filePath).toLowerCase();
-        const contentType = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.gif' ? 'image/gif' : 'image/jpeg';
+        const contentTypeMap: Record<string, string> = {
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.jfif': 'image/jpeg',
+            '.webp': 'image/webp',
+            '.gif': 'image/gif',
+        };
+        const contentType = contentTypeMap[ext] || 'image/jpeg';
         res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
 
         return res.sendFile(filePath);
     }

@@ -611,6 +611,21 @@ export class CertificatesService {
         return `${prefix}-${seqStr}`;
     }
 
+    private formatTitleCase(str: string): string {
+        if (!str) return '';
+        return str
+            .trim()
+            .toLowerCase()
+            .split(/\s+/)
+            .map((word) =>
+                word
+                    .split('-')
+                    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                    .join('-'),
+            )
+            .join(' ');
+    }
+
     private async generatePdf(cert: Certificate, filePath: string, code: string, date: Date, studentName: string, regNo: string): Promise<void> {
         let browser;
         try {
@@ -666,8 +681,10 @@ export class CertificatesService {
 
             const dateStr = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
+            const formattedStudentName = this.formatTitleCase(studentName);
+
             htmlContent = htmlContent
-                .replace(/{Learner_Name}/g, studentName)
+                .replace(/{Learner_Name}/g, formattedStudentName)
                 .replace(/{Course_Name}/g, displayCourseName) // UPDATED
                 .replace(/{Reg_no}/g, regNo)
                 .replace(/{Date}/g, dateStr);
@@ -683,6 +700,30 @@ export class CertificatesService {
             } catch (fontErr) {
                 this.logger.warn(`Font loading timed out or failed: ${fontErr.message}, proceeding anyway`);
             }
+
+            // GUARANTEE: Never exceed 2 lines for Course Name
+            await page.evaluate(() => {
+                const el = document.getElementById('course-name');
+                if (!el) return;
+
+                const getLines = (target: any) => {
+                    const range = document.createRange();
+                    range.selectNodeContents(target);
+                    const rectCount = range.getClientRects().length;
+
+                    const cs = window.getComputedStyle(target);
+                    const lh = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) * 1.2);
+                    const heightCount = Math.round(target.scrollHeight / lh);
+
+                    return Math.max(rectCount, heightCount);
+                };
+
+                let pt = parseFloat(el.style.fontSize) || 27;
+                while (getLines(el) > 2 && pt > 10) {
+                    pt -= 0.5;
+                    el.style.fontSize = `${pt}pt`;
+                }
+            });
 
             this.logger.debug(`Generating PDF to: ${filePath}`);
 

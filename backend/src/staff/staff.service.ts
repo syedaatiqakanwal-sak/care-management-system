@@ -119,11 +119,20 @@ export class StaffService {
     // --- GET METHODS ---
 
     async getProfileByUserId(userId: string): Promise<StaffProfile & { inductionDate?: Date }> {
-        const profile = await this.staffRepository.findOne({
+        let profile = await this.staffRepository.findOne({
             where: { user: { id: userId } },
             relations: ['user']
         });
-        if (!profile) throw new NotFoundException('Profile not found for this user');
+        if (!profile) {
+            const user = await this.usersService.findById(userId);
+            if (!user) throw new NotFoundException('Profile not found for this user');
+            const newProf = this.staffRepository.create({
+                user,
+                firstName: user.email.split('@')[0],
+                lastName: '',
+            });
+            profile = await this.staffRepository.save(newProf);
+        }
 
         return {
             ...profile,
@@ -147,11 +156,20 @@ export class StaffService {
     // --- UPDATE METHODS ---
 
     async updateProfileByUserId(userId: string, data: Partial<StaffProfile> & { email?: string }): Promise<StaffProfile> {
-        const profile = await this.staffRepository.findOne({
+        let profile = await this.staffRepository.findOne({
             where: { user: { id: userId } },
             relations: ['user']
         });
-        if (!profile) throw new NotFoundException('Profile not found');
+        if (!profile) {
+            const user = await this.usersService.findById(userId);
+            if (!user) throw new NotFoundException('Profile not found');
+            const newProf = this.staffRepository.create({
+                user,
+                firstName: user.email.split('@')[0],
+                lastName: '',
+            });
+            profile = await this.staffRepository.save(newProf);
+        }
 
         return this.performUpdate(profile, data);
     }
@@ -329,21 +347,22 @@ export class StaffService {
     // --- Address History Methods ---
 
     async getAddresses(staffId: string) {
-        // staffId passed here is expected to be the staffProfile ID, but usually we deal with userId in controllers.
-        // Let's resolve userId to staffProfile ID first, or just query by staffProfile relations.
-        // Actually, our entity relations: AddressHistory -> StaffProfile.
-        // If we have userId, we find the profile first.
-        const profile = await this.staffRepository.findOne({ where: { user: { id: staffId } } });
-        if (!profile) return []; // Or throw
+        // staffId passed here may be the user ID or the staffProfile ID
+        const profile = await this.staffRepository.findOne({
+            where: [{ user: { id: staffId } }, { id: staffId }]
+        });
+        if (!profile) return [];
 
         return this.addressRepository.find({
             where: { staffProfile: { id: profile.id } },
-            order: { dateFrom: 'DESC' }
+            order: { dateFrom: 'DESC', createdAt: 'DESC' }
         });
     }
 
     async addAddress(userId: string, data: CreateAddressDto) {
-        const profile = await this.staffRepository.findOne({ where: { user: { id: userId } } });
+        const profile = await this.staffRepository.findOne({
+            where: [{ user: { id: userId } }, { id: userId }]
+        });
         if (!profile) throw new NotFoundException('Staff Profile not found');
 
         const line1 =
@@ -358,9 +377,32 @@ export class StaffService {
         return this.addressRepository.save(address);
     }
 
+    async updateAddress(userId: string, addressId: string, data: Partial<CreateAddressDto>) {
+        const profile = await this.staffRepository.findOne({
+            where: [{ user: { id: userId } }, { id: userId }]
+        });
+        if (!profile) throw new NotFoundException('Staff Profile not found');
+
+        const address = await this.addressRepository.findOne({
+            where: { id: addressId, staffProfile: { id: profile.id } }
+        });
+        if (!address) throw new NotFoundException('Address not found');
+
+        if (data.line1 !== undefined) address.line1 = data.line1;
+        if (data.line2 !== undefined) address.line2 = data.line2;
+        if (data.town !== undefined) address.town = data.town;
+        if (data.postcode !== undefined) address.postcode = data.postcode;
+        if (data.dateFrom !== undefined) address.dateFrom = data.dateFrom;
+        if (data.dateTo !== undefined) address.dateTo = data.dateTo;
+
+        return this.addressRepository.save(address);
+    }
+
     async removeAddress(userId: string, addressId: string) {
         // Ensure ownership
-        const profile = await this.staffRepository.findOne({ where: { user: { id: userId } } });
+        const profile = await this.staffRepository.findOne({
+            where: [{ user: { id: userId } }, { id: userId }]
+        });
         if (!profile) throw new NotFoundException('access denied');
 
         const address = await this.addressRepository.findOne({

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -44,16 +44,17 @@ export class AuthService {
 
         const payload = { sub: user.id, role: user.role };
 
-        let name = 'Admin User';
-        if (user.role === UserRole.STAFF) {
-            try {
-                const profile = await this.staffService.getProfileByUserId(user.id);
-                name = `${profile.firstName} ${profile.lastName}`;
-            } catch (e) {
-                name = 'Staff Member';
+        let name = user.role === UserRole.ADMIN ? 'Admin' : 'Staff Member';
+        try {
+            const profile = await this.staffService.getProfileByUserId(user.id);
+            if (profile) {
+                const fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim();
+                if (fullName) {
+                    name = fullName;
+                }
             }
-        } else if (user.role === UserRole.ADMIN) {
-            name = 'Admin';
+        } catch (e) {
+            // Keep role fallback if profile lookup fails
         }
 
         return {
@@ -175,5 +176,37 @@ export class AuthService {
         } as any);
 
         return { message: 'Password reset successfully' };
+    }
+
+    async changePassword(userId: string, currentPassword?: string, newPassword?: string) {
+        if (!newPassword || newPassword.length < 8) {
+            throw new BadRequestException('Password must be at least 8 characters long');
+        }
+        if (!/\d/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+            throw new BadRequestException('Password must include at least one number, one uppercase letter, and one special character');
+        }
+
+        const user = await this.usersService.findById(userId);
+        if (!user) {
+            throw new UnauthorizedException('User not found');
+        }
+
+        if (user.role !== UserRole.ADMIN) {
+            throw new ForbiddenException('Only administrators are permitted to change password');
+        }
+
+        if (currentPassword) {
+            const isValid = await bcrypt.compare(currentPassword, user.password);
+            if (!isValid) {
+                throw new BadRequestException('Current password is incorrect');
+            }
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+        await this.usersService.update(user.id, {
+            password: hashedPassword,
+        });
+
+        return { message: 'Password updated successfully' };
     }
 }

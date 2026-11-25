@@ -1,5 +1,5 @@
-import { Stack, UnstyledButton, Group, Text, rem, Box, Badge, ActionIcon, Tooltip } from '@mantine/core';
-import { Users, Phone, LogOut, BookOpen, Settings, UserPlus, FileText, PanelLeftClose, PanelLeft, User, ClipboardCheck, X } from 'lucide-react';
+import { Stack, UnstyledButton, Group, Text, rem, Box, Badge, ActionIcon, Tooltip, Anchor } from '@mantine/core';
+import { Users, Phone, LogOut, BookOpen, Settings, UserPlus, FileText, PanelLeftClose, PanelLeft, User, ClipboardCheck, X, Award, Linkedin } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 import { Check } from 'lucide-react';
@@ -167,6 +167,7 @@ const sidebarStyles = `
 
 const data = [
     { link: '/dashboard', label: 'Staff', icon: Users },
+    { link: '/dashboard/certificates', label: 'Certificates', icon: Award },
     { link: '/register', label: 'Add Staff', icon: UserPlus },
     { link: '/dashboard/me', label: 'View Profile', icon: User },
     { link: '/courses', label: 'Courses', icon: BookOpen },
@@ -180,6 +181,9 @@ function isNavItemActive(link: string, pathname: string): boolean {
     if (link.startsWith('http')) return false;
     if (link === '/dashboard') {
         return pathname === '/dashboard' || pathname === '/dashboard/';
+    }
+    if (link === '/dashboard/certificates') {
+        return pathname.startsWith('/dashboard/certificates');
     }
     if (link === '/dashboard/me' && pathname.startsWith('/dashboard/me')) {
         return true;
@@ -198,7 +202,7 @@ export function Sidebar({
 } = {}) {
     const navigate = useNavigate();
     const location = useLocation();
-    const { collapsed, toggle } = useSidebar();
+    const { collapsed, toggle, resetAutoCloseTimer } = useSidebar();
 
     const role = (localStorage.getItem('role') || '').toLowerCase();
     const token = localStorage.getItem('token');
@@ -239,7 +243,7 @@ export function Sidebar({
 
     // Filter links based on role
     const filteredLinks = data.filter((item) => {
-        if ((item.label === 'Staff' || item.label === 'Add Staff' || item.label === 'Settings' || item.label === 'Reference') && role !== 'admin') return false;
+        if ((item.label === 'Staff' || item.label === 'Certificates' || item.label === 'Add Staff' || item.label === 'Settings' || item.label === 'Reference') && role !== 'admin') return false;
         if (item.label === 'View Profile' && role !== 'staff') return false;
         if (item.label === 'Courses' && role !== 'admin') return false;
         return true;
@@ -328,89 +332,326 @@ export function Sidebar({
     return (
         <>
             <style>{sidebarStyles}</style>
-            <nav className="cpd-sidebar" aria-label="Main navigation" style={{ padding: isCompact ? '12px 8px' : '14px 12px' }}>
-                {!hideHeader && (
-                    <Box
-                        mb={14}
-                        style={{
-                            flexShrink: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: isCompact ? 'center' : 'space-between',
-                            gap: 8,
-                            minHeight: 44,
-                        }}
-                    >
-                        {!isCompact && (
+            <nav
+                className="cpd-sidebar"
+                aria-label="Main navigation"
+                style={{ padding: 0 }}
+                onMouseEnter={resetAutoCloseTimer}
+                onMouseMove={resetAutoCloseTimer}
+                onClick={resetAutoCloseTimer}
+            >
+                {/* Brand Header: Logo + College Name (only logo when compact) */}
+                <Box
+                    className="cpd-sidebar-brand"
+                    style={{
+                        flexShrink: 0,
+                        height: 76,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: isCompact ? 'center' : 'flex-start',
+                        padding: isCompact ? '0 10px' : '0 16px',
+                        borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+                        backgroundColor: '#ffffff',
+                    }}
+                >
+                    {!isCompact ? (
+                        <Group
+                            gap={12}
+                            wrap="nowrap"
+                            style={{ minWidth: 0, flex: 1, cursor: 'pointer' }}
+                            onClick={() => {
+                                navigate('/dashboard');
+                                if (onClose) onClose();
+                            }}
+                        >
+                            <Box
+                                style={{
+                                    backgroundColor: '#ffffff',
+                                    padding: 4,
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 3px 10px rgba(0, 0, 0, 0.1)',
+                                    border: '1.5px solid rgba(30, 186, 242, 0.3)',
+                                    flexShrink: 0,
+                                }}
+                            >
+                                <img src="/assets/logo.png" alt="Inspire London College Logo" style={{ height: 42, width: 'auto' }} />
+                            </Box>
                             <Box style={{ minWidth: 0, flex: 1 }}>
                                 <Text
-                                    fw={800}
-                                    size="sm"
-                                    style={{
-                                        color: '#1EBAF2',
-                                        letterSpacing: '-0.01em',
-                                        lineHeight: 1.2,
-                                    }}
+                                    fw={900}
+                                    size="20px"
+                                    c="#111827"
+                                    style={{ lineHeight: 1.15, letterSpacing: '-0.4px', whiteSpace: 'nowrap' }}
                                 >
-                                    {portalTitle}
+                                    Inspire London
                                 </Text>
-                                <Text size="xs" c="dimmed" fw={500} style={{ lineHeight: 1.3, marginTop: 2 }}>
-                                    {portalSubtitle}
+                                <Text
+                                    fw={900}
+                                    size="20px"
+                                    c="#1EBAF2"
+                                    style={{ lineHeight: 1.15, letterSpacing: '-0.4px', whiteSpace: 'nowrap' }}
+                                >
+                                    College
                                 </Text>
                             </Box>
-                        )}
-                        <Tooltip
-                            label={onClose ? 'Close menu' : isCompact ? 'Expand sidebar' : 'Collapse sidebar'}
-                            position="right"
-                        >
+                        </Group>
+                    ) : (
+                        <Tooltip label="Inspire London College" position="right" openDelay={200}>
+                            <UnstyledButton
+                                onClick={() => {
+                                    navigate('/dashboard');
+                                    if (onClose) onClose();
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                aria-label="Inspire London College"
+                            >
+                                <Box
+                                    style={{
+                                        backgroundColor: '#ffffff',
+                                        padding: 4,
+                                        borderRadius: '50%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 3px 10px rgba(0, 0, 0, 0.1)',
+                                        border: '1.5px solid rgba(30, 186, 242, 0.3)',
+                                    }}
+                                >
+                                    <img src="/assets/logo.png" alt="Inspire London College Logo" style={{ height: 38, width: 'auto' }} />
+                                </Box>
+                            </UnstyledButton>
+                        </Tooltip>
+                    )}
+
+                    {onClose && (
+                        <Tooltip label="Close menu" position="bottom" openDelay={200}>
                             <ActionIcon
                                 className="cpd-sidebar-close"
                                 variant="subtle"
-                                onClick={onClose || toggle}
-                                aria-label={onClose ? 'Close menu' : isCompact ? 'Expand sidebar' : 'Collapse sidebar'}
+                                onClick={onClose}
+                                aria-label="Close menu"
                             >
-                                {onClose ? (
-                                    <X size={14} strokeWidth={2.25} />
-                                ) : isCompact ? (
-                                    <PanelLeft size={15} strokeWidth={2} />
-                                ) : (
-                                    <PanelLeftClose size={15} strokeWidth={2} />
-                                )}
+                                <X size={15} strokeWidth={2} />
                             </ActionIcon>
                         </Tooltip>
+                    )}
+                </Box>
+
+                {/* Subtitle / Portal role section */}
+                {!isCompact && (
+                    <Box px={14} pt={12} pb={6} style={{ flexShrink: 0 }}>
+                        <Text
+                            fw={800}
+                            size="xs"
+                            style={{
+                                color: '#1EBAF2',
+                                letterSpacing: '0.8px',
+                                textTransform: 'uppercase',
+                                lineHeight: 1.2,
+                            }}
+                        >
+                            {portalTitle}
+                        </Text>
+                        <Text size="11px" c="dimmed" fw={500} style={{ lineHeight: 1.3, marginTop: 2 }}>
+                            {portalSubtitle}
+                        </Text>
                     </Box>
                 )}
 
-                <Stack className="cpd-sidebar-nav" gap={4} role="list">
+                <Stack className="cpd-sidebar-nav" gap={4} role="list" style={{ padding: isCompact ? '6px 8px' : '6px 12px' }}>
                     {links}
                 </Stack>
 
-                <Box className="cpd-sidebar-footer">
+                <Box className="cpd-sidebar-footer" style={{ padding: isCompact ? '8px 6px 12px' : '10px 12px 14px' }}>
                     <Tooltip label="Sign Out" position="right" disabled={!isCompact} openDelay={200}>
                         <UnstyledButton
-                            className="cpd-signout"
                             onClick={handleSignOut}
                             aria-label="Sign out"
                             style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                width: '100%',
+                                padding: isCompact ? '8px 0' : '8px 12px',
                                 justifyContent: isCompact ? 'center' : 'flex-start',
-                                padding: isCompact ? 8 : '10px 12px',
+                                borderRadius: 8,
+                                color: '#e03131',
+                                fontWeight: 600,
+                                fontSize: '13px',
+                                cursor: 'pointer',
+                                transition: 'background 160ms ease',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
                             }}
                         >
-                            <span className="cpd-signout-icon" aria-hidden>
-                                <LogOut style={{ width: rem(16), height: rem(16) }} />
-                            </span>
-                            {!isCompact && (
-                                <Box style={{ minWidth: 0, textAlign: 'left' }}>
-                                    <Text size="sm" fw={700} c="#c92a2a" style={{ lineHeight: 1.2 }}>
-                                        Sign Out
-                                    </Text>
-                                    <Text size="xs" c="dimmed" fw={500} style={{ lineHeight: 1.2, marginTop: 2 }}>
-                                        End current session
-                                    </Text>
-                                </Box>
-                            )}
+                            <LogOut size={16} strokeWidth={2.2} />
+                            {!isCompact && <span>Sign Out</span>}
                         </UnstyledButton>
                     </Tooltip>
+
+                    {/* Integrated Footer: Lets Care All Ltd & Developer Link */}
+                    {!isCompact ? (
+                        <Box
+                            mt={12}
+                            pt={12}
+                            style={{
+                                borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 10,
+                            }}
+                        >
+                            <Group gap={10} wrap="nowrap" style={{ minWidth: 0 }}>
+                                <Box
+                                    aria-hidden
+                                    style={{
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: 8,
+                                        flexShrink: 0,
+                                        background: 'linear-gradient(135deg, #1EBAF2 0%, #0F7296 100%)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 2px 8px rgba(30, 186, 242, 0.28)',
+                                    }}
+                                >
+                                    <Text size="xs" fw={900} c="white" style={{ fontSize: 11, letterSpacing: '-0.02em' }}>
+                                        LC
+                                    </Text>
+                                </Box>
+                                <Box style={{ minWidth: 0 }}>
+                                    <Text
+                                        size="xs"
+                                        fw={700}
+                                        c="#1f2937"
+                                        style={{ lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                    >
+                                        Lets Care All Ltd
+                                    </Text>
+                                    <Text size="xs" c="dimmed" fw={500} style={{ lineHeight: 1.2, fontSize: 11 }}>
+                                        © {new Date().getFullYear()} All rights reserved
+                                    </Text>
+                                </Box>
+                            </Group>
+
+                            <Anchor
+                                href="https://pk.linkedin.com/in/syeda-atiqa-kanwal-838490390?trk=people-guest_people_search-card"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                underline="never"
+                                aria-label="Developer LinkedIn profile"
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '6px 10px',
+                                    borderRadius: 999,
+                                    background: 'rgba(30, 186, 242, 0.08)',
+                                    border: '1px solid rgba(30, 186, 242, 0.18)',
+                                    transition: 'background 160ms ease, border-color 160ms ease, box-shadow 160ms ease',
+                                    textDecoration: 'none',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(30, 186, 242, 0.14)';
+                                    e.currentTarget.style.borderColor = 'rgba(30, 186, 242, 0.35)';
+                                    e.currentTarget.style.boxShadow = '0 2px 10px rgba(30, 186, 242, 0.15)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'rgba(30, 186, 242, 0.08)';
+                                    e.currentTarget.style.borderColor = 'rgba(30, 186, 242, 0.18)';
+                                    e.currentTarget.style.boxShadow = 'none';
+                                }}
+                            >
+                                <Text size="xs" fw={600} c="#0F7296" style={{ lineHeight: 1 }}>
+                                    Developer
+                                </Text>
+                                <Box
+                                    style={{
+                                        width: 20,
+                                        height: 20,
+                                        borderRadius: 6,
+                                        backgroundColor: '#0A66C2',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    <Linkedin size={12} color="white" strokeWidth={2.25} />
+                                </Box>
+                            </Anchor>
+                        </Box>
+                    ) : (
+                        <Box
+                            mt={10}
+                            pt={10}
+                            style={{
+                                borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: 8,
+                            }}
+                        >
+                            <Tooltip label={`Lets Care All Ltd - © ${new Date().getFullYear()}`} position="right" openDelay={200}>
+                                <Box
+                                    aria-hidden
+                                    style={{
+                                        width: 32,
+                                        height: 32,
+                                        borderRadius: 8,
+                                        background: 'linear-gradient(135deg, #1EBAF2 0%, #0F7296 100%)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 2px 8px rgba(30, 186, 242, 0.28)',
+                                        cursor: 'default',
+                                    }}
+                                >
+                                    <Text size="xs" fw={900} c="white" style={{ fontSize: 11, letterSpacing: '-0.02em' }}>
+                                        LC
+                                    </Text>
+                                </Box>
+                            </Tooltip>
+
+                            <Tooltip label="Developer Profile" position="right" openDelay={200}>
+                                <Anchor
+                                    href="https://pk.linkedin.com/in/syeda-atiqa-kanwal-838490390?trk=people-guest_people_search-card"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    underline="never"
+                                    aria-label="Developer LinkedIn profile"
+                                    style={{
+                                        width: 32,
+                                        height: 32,
+                                        borderRadius: 8,
+                                        backgroundColor: '#0A66C2',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 2px 8px rgba(10, 102, 194, 0.3)',
+                                        transition: 'transform 160ms ease',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'scale(1.08)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'none';
+                                    }}
+                                >
+                                    <Linkedin size={14} color="white" strokeWidth={2.25} />
+                                </Anchor>
+                            </Tooltip>
+                        </Box>
+                    )}
                 </Box>
             </nav>
         </>

@@ -43,6 +43,7 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
     const [addresses, setAddresses] = useState<any[]>([]);
     const [addressLoading, setAddressLoading] = useState(false);
     const [addressModalOpened, { open: openAddressModal, close: closeAddressModal }] = useDisclosure(false);
+    const [currentAddressModalOpened, { open: openCurrentAddressModal, close: closeCurrentAddressModal }] = useDisclosure(false);
     const [newAddress, setNewAddress] = useState({
         line1: '',
         line2: '',
@@ -51,7 +52,15 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
         dateFrom: '',
         dateTo: ''
     });
+    const [newCurrentAddress, setNewCurrentAddress] = useState({
+        line1: '',
+        line2: '',
+        town: '',
+        postcode: '',
+        dateFrom: new Date().toISOString().split('T')[0],
+    });
     const [submittingAddress, setSubmittingAddress] = useState(false);
+    const [submittingCurrentAddress, setSubmittingCurrentAddress] = useState(false);
 
     const handleChange = (field: string, value: any) => {
         if (onProfileChange) {
@@ -232,6 +241,7 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
     };
 
     const currentResidency = addresses.length > 0 ? addresses[0] : null;
+    const historicalAddresses = addresses.slice(1);
     const currentResidencyText = currentResidency
         ? [currentResidency.line1, currentResidency.line2, currentResidency.town, currentResidency.postcode]
               .filter((part: string) => part != null && String(part).trim() !== '')
@@ -239,6 +249,89 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
         : '';
     const currentDateFrom = currentResidency?.dateFrom?.split('T')[0] ?? '';
     const currentDateTo = currentResidency?.dateTo?.split('T')[0] ?? '';
+
+    const handleAddCurrentAddress = async () => {
+        const targetId = profile.user?.id || profile.id;
+        const trim = (s: string) => s?.trim() ?? '';
+        if (!trim(newCurrentAddress.town) || !trim(newCurrentAddress.postcode)) {
+            notifications.show({ title: 'Validation', message: 'Please enter Town/City and Postcode', color: 'orange' });
+            return;
+        }
+        if (!trim(newCurrentAddress.dateFrom)) {
+            notifications.show({ title: 'Validation', message: 'Please select From Date', color: 'orange' });
+            return;
+        }
+
+        try {
+            setSubmittingCurrentAddress(true);
+            const token = localStorage.getItem('token');
+            const transitionDate = trim(newCurrentAddress.dateFrom);
+
+            // 1. If there's an existing current address, shift it to history by setting its dateTo to transitionDate
+            if (currentResidency && currentResidency.id) {
+                await axios.patch(`/api/v1/staff/${targetId}/addresses/${currentResidency.id}`, {
+                    dateTo: transitionDate,
+                }, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+            }
+
+            // 2. Add the new address as the active current residency
+            const payload: Record<string, string> = {
+                town: trim(newCurrentAddress.town),
+                postcode: trim(newCurrentAddress.postcode),
+                dateFrom: transitionDate,
+                dateTo: transitionDate,
+            };
+            if (trim(newCurrentAddress.line1)) payload.line1 = trim(newCurrentAddress.line1);
+            if (trim(newCurrentAddress.line2)) payload.line2 = trim(newCurrentAddress.line2);
+
+            await axios.post(`/api/v1/staff/${targetId}/addresses`, payload, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            notifications.show({
+                title: 'Current Address Updated',
+                message: 'New current address set. Previous address shifted to Address History.',
+                color: 'teal',
+            });
+
+            closeCurrentAddressModal();
+            setNewCurrentAddress({
+                line1: '',
+                line2: '',
+                town: '',
+                postcode: '',
+                dateFrom: new Date().toISOString().split('T')[0],
+            });
+            fetchAddresses();
+        } catch (error) {
+            let message = 'Failed to update current address';
+            if (axios.isAxiosError(error)) {
+                const m = error.response?.data?.message;
+                if (Array.isArray(m)) message = m.join(' ');
+                else if (typeof m === 'string') message = m;
+            }
+            notifications.show({ title: 'Error', message, color: 'red' });
+        } finally {
+            setSubmittingCurrentAddress(false);
+        }
+    };
+
+    const handleUpdateDateTo = async (addressId: string, dateTo: string) => {
+        if (!dateTo) return;
+        const targetId = profile.user?.id || profile.id;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.patch(`/api/v1/staff/${targetId}/addresses/${addressId}`, { dateTo }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            notifications.show({ title: 'Saved', message: 'Address end date updated', color: 'teal' });
+            fetchAddresses();
+        } catch (error) {
+            notifications.show({ title: 'Error', message: 'Failed to update end date', color: 'red' });
+        }
+    };
 
     return (
         <>
@@ -645,8 +738,8 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
                     </Paper>
 
                     <Paper p={{ base: 'md', md: 'xl' }} radius="24" withBorder style={{ borderColor: '#E9ECEF', overflow: 'hidden' }}>
-                        <Group mb={{ base: 'md', md: 'xl' }} justify="space-between" align="flex-start" wrap="wrap">
-                            <Box bg="green.0" p="md" style={{ borderRadius: '16px', flex: 1 }}>
+                        <Group mb={{ base: 'md', md: 'xl' }} justify="space-between" align="center" wrap="wrap" gap="sm">
+                            <Box bg="green.0" p="md" style={{ borderRadius: '16px', flex: 1, minWidth: 240 }}>
                                 <Group gap="sm">
                                     <ThemeIcon variant="gradient" gradient={{ from: 'green.6', to: 'lime', deg: 90 }} radius="md" size="lg">
                                         <MapPin size={20} />
@@ -657,7 +750,19 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
                                     </Box>
                                 </Group>
                             </Box>
-                            <Badge color="#E51690" size="lg" variant="gradient" gradient={{ from: 'green.6', to: 'teal', deg: 90 }} style={{ marginTop: 12 }}>Active Residence</Badge>
+                            <Group gap="sm">
+                                <Badge color="#E51690" size="lg" variant="gradient" gradient={{ from: 'green.6', to: 'teal', deg: 90 }}>Active Residence</Badge>
+                                <Button
+                                    variant="light"
+                                    color="teal"
+                                    size="sm"
+                                    radius="xl"
+                                    leftSection={<Plus size={14} />}
+                                    onClick={openCurrentAddressModal}
+                                >
+                                    Add Current Address
+                                </Button>
+                            </Group>
                         </Group>
 
                         <Box
@@ -672,7 +777,7 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
                                 <Textarea
                                     label="Current Full Address"
                                     value={currentResidencyText}
-                                    placeholder="No address on file — add one in Address History below."
+                                    placeholder="No current address on file — click 'Add Current Address' above."
                                     minRows={3}
                                     readOnly
                                     variant="filled"
@@ -691,12 +796,12 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
                                     />
                                     <TextInput
                                         label="Date To"
-                                        type="date"
-                                        value={currentDateTo}
+                                        value="Present (Active)"
                                         readOnly
                                         variant="filled"
                                         fw={700}
                                         radius="md"
+                                        styles={{ input: { color: '#059669', fontWeight: 700 } }}
                                     />
                                 </SimpleGrid>
                             </Stack>
@@ -730,9 +835,9 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
                         </Group>
 
                         <Stack gap="md">
-                            {addresses.length === 0 ? (
-                                <Text c="dimmed" size="sm" ta="center" py="xl">No address history recorded.</Text>
-                            ) : addresses.map((addr) => (
+                            {historicalAddresses.length === 0 ? (
+                                <Text c="dimmed" size="sm" ta="center" py="xl">No previous address history recorded.</Text>
+                            ) : historicalAddresses.map((addr) => (
                                 <Box key={addr.id} p="md" style={{ borderLeft: '4px solid #DEE2E6', backgroundColor: '#F8F9FA', borderRadius: '0 12px 12px 0', position: 'relative' }}>
                                     <Group justify="space-between" align="flex-start" mb="xs" wrap="wrap">
                                         <Text size="xs" fw={700} c="dimmed" tt="uppercase">Address Record</Text>
@@ -756,8 +861,37 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
                                                 .join(', ')}
                                         </Text>
                                         <SimpleGrid cols={{ base: 1, sm: 2 }} mt="xs">
-                                            <TextInput label="Date From" type="date" value={addr.dateFrom?.split('T')[0] || ''} readOnly variant="filled" size="sm" radius="md" />
-                                            <TextInput label="Date To" type="date" value={addr.dateTo?.split('T')[0] || ''} readOnly variant="filled" size="sm" radius="md" />
+                                            <TextInput
+                                                label="Date From"
+                                                type="date"
+                                                value={addr.dateFrom?.split('T')[0] || ''}
+                                                readOnly
+                                                variant="filled"
+                                                size="sm"
+                                                radius="md"
+                                            />
+                                            <TextInput
+                                                label="Date To (Click to edit)"
+                                                type="date"
+                                                defaultValue={addr.dateTo?.split('T')[0] || ''}
+                                                key={addr.dateTo?.split('T')[0] || ''}
+                                                onBlur={(e) => {
+                                                    const val = e.target.value;
+                                                    if (val && val !== addr.dateTo?.split('T')[0]) {
+                                                        handleUpdateDateTo(addr.id, val);
+                                                    }
+                                                }}
+                                                size="sm"
+                                                radius="md"
+                                                styles={{
+                                                    input: {
+                                                        backgroundColor: '#ffffff',
+                                                        borderColor: 'rgba(30, 186, 242, 0.45)',
+                                                        fontWeight: 600,
+                                                    }
+                                                }}
+                                                description="Auto-picked transition date, editable"
+                                            />
                                         </SimpleGrid>
                                     </Stack>
                                 </Box>
@@ -765,6 +899,7 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
                         </Stack>
                     </Paper>
 
+                    {/* Add Previous Address Modal */}
                     <Modal opened={addressModalOpened} onClose={closeAddressModal} title={<Text fw={700}>Add Previous Address</Text>} centered>
                         <Stack>
                             <TextInput
@@ -811,6 +946,71 @@ export const PersonalDetailsTab = ({ profile, isEditing, onProfileChange }: Pers
                             <Group justify="flex-end" mt="md">
                                 <Button variant="default" onClick={closeAddressModal}>Cancel</Button>
                                 <Button onClick={handleAddAddress} loading={submittingAddress}>Add Address</Button>
+                            </Group>
+                        </Stack>
+                    </Modal>
+
+                    {/* Add Current Address Modal */}
+                    <Modal
+                        opened={currentAddressModalOpened}
+                        onClose={closeCurrentAddressModal}
+                        title={
+                            <Group gap="xs">
+                                <ThemeIcon color="teal" variant="light" size="md" radius="md">
+                                    <MapPin size={18} />
+                                </ThemeIcon>
+                                <Text fw={700} size="md">Add Current Address</Text>
+                            </Group>
+                        }
+                        centered
+                        radius="lg"
+                    >
+                        <Stack gap="sm">
+                            <Text size="xs" c="dimmed">
+                                Adding a new current address will automatically move the previous address into Address History with its end date set to your move-in date.
+                            </Text>
+                            <TextInput
+                                label="Address Line 1"
+                                data-autofocus
+                                placeholder="e.g. 67 Telford Way"
+                                value={newCurrentAddress.line1}
+                                onChange={(e) => setNewCurrentAddress({ ...newCurrentAddress, line1: e.target.value })}
+                                required
+                            />
+                            <TextInput
+                                label="Address Line 2 (Optional)"
+                                placeholder="e.g. Hayes Hillingdon"
+                                value={newCurrentAddress.line2}
+                                onChange={(e) => setNewCurrentAddress({ ...newCurrentAddress, line2: e.target.value })}
+                            />
+                            <SimpleGrid cols={2}>
+                                <TextInput
+                                    label="Town/City"
+                                    placeholder="London"
+                                    value={newCurrentAddress.town}
+                                    onChange={(e) => setNewCurrentAddress({ ...newCurrentAddress, town: e.target.value })}
+                                    required
+                                />
+                                <TextInput
+                                    label="Postcode"
+                                    placeholder="UB4 9TH"
+                                    value={newCurrentAddress.postcode}
+                                    onChange={(e) => setNewCurrentAddress({ ...newCurrentAddress, postcode: e.target.value })}
+                                    required
+                                />
+                            </SimpleGrid>
+                            <TextInput
+                                label="From Date (Move-in Date)"
+                                type="date"
+                                value={newCurrentAddress.dateFrom}
+                                onChange={(e) => setNewCurrentAddress({ ...newCurrentAddress, dateFrom: e.target.value })}
+                                required
+                            />
+                            <Group justify="flex-end" mt="md">
+                                <Button variant="default" onClick={closeCurrentAddressModal}>Cancel</Button>
+                                <Button color="teal" onClick={handleAddCurrentAddress} loading={submittingCurrentAddress}>
+                                    Save Current Address
+                                </Button>
                             </Group>
                         </Stack>
                     </Modal>

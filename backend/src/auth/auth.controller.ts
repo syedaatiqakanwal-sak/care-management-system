@@ -71,4 +71,11 @@ export class AuthController {
     async resetPassword(@Body() body: { email: string, otp: string, newPassword: string }) {
         return this.authService.resetPassword(body.email, body.otp, body.newPassword);
     }
+
+    @UseGuards(AuthGuard('jwt'))
+    @Post('change-password')
+    async changePassword(@Request() req, @Body() body: { currentPassword?: string, newPassword: string }) {
+        const userId = req.user.userId || req.user.id;
+        return this.authService.changePassword(userId, body.currentPassword, body.newPassword);
+    }
 }
